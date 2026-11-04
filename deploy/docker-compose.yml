@@ -36,7 +36,7 @@ services:
       Jwt__Key: ${JWT_KEY:?Falta JWT_KEY en .env}
       Jwt__Issuer: CaminoSeguro
       Jwt__Audience: CaminoSeguroWeb
-      Cors__AllowedOrigins: ${PUBLIC_URL:-http://localhost}
+      Cors__AllowedOrigins__0: ${PUBLIC_URL:-http://localhost}
       Nominatim__UserAgent: CaminoSeguro-Hackaton/1.0
     depends_on:
       db:
