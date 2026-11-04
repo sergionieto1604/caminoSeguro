@@ -17,6 +17,13 @@ npm start            # http://localhost:4200
    (el archivo `_redirects` ya va incluido para que las rutas funcionen al recargar).
 4. Pasarle la URL de Netlify al backend para `Cors__AllowedOrigins`.
 
+## Docker (todo en una instancia)
+```bash
+cd deploy && cp .env.example .env   # editar secretos
+docker compose up -d --build        # http://<IP>
+```
+Detalles en [docs/04-manual-tecnico.md](docs/04-manual-tecnico.md). Documentación completa en [docs/](docs/README.md).
+
 ## Estructura
 ```
 src/app/

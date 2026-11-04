@@ -1,0 +1,59 @@
+# Despliegue completo en UNA instancia (VM de Azure, EC2, DigitalOcean...).
+# Estructura esperada en el servidor:
+#   hackaton/
+#   ├── camino_segurofront/   (este repo; este archivo está en deploy/)
+#   └── camino_seguroback/    (repo del backend, con su Dockerfile en la raíz)
+#
+# Uso:  cd camino_segurofront/deploy && cp .env.example .env && (editar .env)
+#       docker compose up -d --build
+name: camino-seguro
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SQL_SA_PASSWORD:?Falta SQL_SA_PASSWORD en .env}
+      MSSQL_PID: Express
+    volumes:
+      - sqldata:/var/opt/mssql
+    # Sin "ports": la base de datos NO queda expuesta a internet.
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ../../camino_seguroback
+      args:
+        APP_NAME: ${API_APP_NAME:-CaminoSeguro.Api}
+    environment:
+      ConnectionStrings__Default: "Server=db,1433;Database=CaminoSeguro;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True"
+      Jwt__Key: ${JWT_KEY:?Falta JWT_KEY en .env}
+      Jwt__Issuer: CaminoSeguro
+      Jwt__Audience: CaminoSeguroWeb
+      Cors__AllowedOrigins: ${PUBLIC_URL:-http://localhost}
+      Nominatim__UserAgent: CaminoSeguro-Hackaton/1.0
+    depends_on:
+      db:
+        condition: service_healthy
+    # Sin "ports": solo se llega a la API a través de nginx (/api).
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      args:
+        API_URL: /api
+    ports:
+      - "80:8080"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  sqldata:
