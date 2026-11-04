@@ -1,6 +1,6 @@
 # Camino Seguro — Manual de usuario
 
-**Versión 1.0 · 4 de noviembre de 2026**
+**Versión 1.1 · 4 de noviembre de 2026**
 
 Camino Seguro es un mapa colaborativo donde las mujeres de Cundinamarca señalan los **lugares** que sienten inseguros de noche, para que otras puedan planear rutas más seguras.
 
@@ -24,7 +24,7 @@ Camino Seguro es un mapa colaborativo donde las mujeres de Cundinamarca señalan
 1. Abre la aplicación. Verás **«Zonas de riesgo reportadas»**.
 2. Elige desde dónde medir la cercanía:
    - Toca **📍 Usar mi ubicación** y acepta el permiso del navegador. Tu ubicación **no se guarda** y se redondea a unos 100 metros.
-   - O elige tu **municipio** en la lista. La app lo recuerda para la próxima vez.
+   - O elige tu **municipio** en la lista (hay 18 de Cundinamarca y la zona metropolitana). La app lo recuerda para la próxima vez.
 3. Los reportes aparecen **del más cercano al más lejano**, con la distancia en metros o kilómetros.
 
 ```mermaid
@@ -43,9 +43,11 @@ Debajo de la ubicación hay botones con colores. Toca uno para ver solo esa cate
 
 | Color | Categoría |
 |---|---|
-| 🔴 Rojo | Acoso |
-| 🟡 Amarillo | Iluminación deficiente |
-| 🟣 Morado | Zona desolada |
+| 🟠 Ámbar | Poca iluminación |
+| ⚪ Gris | Zona solitaria |
+| 🔴 Rojo | Acoso callejero |
+| 🟣 Morado | Robo o atraco |
+| 🔵 Azul claro | Transporte inseguro |
 | 🟢 Verde azulado | Otro |
 
 ### Ver el mapa
@@ -60,7 +62,7 @@ Debajo de la ubicación hay botones con colores. Toca uno para ver solo esa cate
 ## 3. Crear tu cuenta
 
 1. Toca **Crear cuenta** (en el celular, abre el menú ☰).
-2. Escribe un **alias**. Es como te verán si no reportas como anónima; no uses tu nombre completo.
+2. Escribe un **alias** de 3 a 30 caracteres. Es como te verán si no reportas como anónima; no uses tu nombre completo.
 3. Escribe tu **correo** y una **contraseña** de mínimo 8 caracteres con letras y números. Repítela.
 4. Acepta el tratamiento de datos. Solo se guardan tu correo, tu alias y tus reportes.
 5. Toca **Crear cuenta**. Quedas con la sesión iniciada.
@@ -72,7 +74,7 @@ Debajo de la ubicación hay botones con colores. Toca uno para ver solo esa cate
 ## 4. Reportar un punto de riesgo
 
 1. Toca el botón naranja **＋ Reportar**.
-2. **¿Qué tipo de riesgo es?** Toca una de las cuatro categorías.
+2. **¿Qué tipo de riesgo es?** Toca una de las seis categorías.
 3. **¿Dónde queda?**
    - Elige el **municipio**.
    - Escribe un **punto de referencia** que todas reconozcan, por ejemplo *«Parque principal, esquina de la iglesia»* o *«Paradero frente a la universidad»*.
@@ -82,7 +84,7 @@ Debajo de la ubicación hay botones con colores. Toca uno para ver solo esa cate
 5. **Publicar como anónima** viene activado. Si lo desactivas, se mostrará tu alias. **Tu correo nunca se muestra.**
 6. Toca **Publicar reporte**.
 
-Si la app no encuentra el lugar exacto, ubica el reporte en el **centro del municipio** y te lo avisa. En la tarjeta aparece como «ubicación aprox.».
+Si la app no encuentra el lugar exacto, o lo encuentra lejos del municipio elegido, ubica el reporte en el **centro del municipio** y te lo avisa. En la tarjeta aparece como «ubicación aprox.».
 
 ---
 
@@ -106,5 +108,6 @@ Si a ti también te pasó algo en ese lugar, toca **A mí también** en la tarje
 | ¿La app guarda dónde estoy? | No. El GPS solo se usa para ordenar la lista, redondeado, y no se guarda. |
 | ¿Puedo usarla sin cuenta? | Sí, para ver reportes y el mapa. Para reportar o confirmar necesitas cuenta. |
 | ¿Por qué me pide ingresar otra vez? | La sesión dura 2 horas por seguridad. |
+| Dice «Demasiados intentos» | Por seguridad hay un máximo de intentos por minuto. Espera un minuto y vuelve a intentar. |
 | No aparecen reportes | Prueba con **Todos** en el filtro o con otro municipio. Si no hay, ¡haz el primero! |
 | El mapa se ve gris | Revisa tu conexión a internet: el mapa se carga desde OpenStreetMap. |

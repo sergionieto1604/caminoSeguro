@@ -1,6 +1,6 @@
 # Camino Seguro — Diagramas UML
 
-**Anexo A del documento de arquitectura** · Hackatón, ciclo de Profundización · 4 de noviembre de 2026
+**Anexo A del documento de arquitectura (v1.1)** · Hackatón, ciclo de Profundización · 4 de noviembre de 2026
 Equipo: Yeison Hernández · Alejandro Martínez · Alejandro Nieto
 
 Todos los diagramas están escritos como código Mermaid. GitHub los muestra dibujados al abrir este archivo. Para exportarlos como imagen se puede usar https://mermaid.live.
@@ -82,8 +82,8 @@ flowchart LR
 
 | ID | Nombre | Actor | Precondición | Flujo principal | Postcondición |
 |---|---|---|---|---|---|
-| CU01 | Registrarse | Visitante | No tiene cuenta | Ingresa alias, correo y contraseña (mínimo 8 caracteres, con letras y números) y acepta la Ley 1581 | Cuenta creada y sesión iniciada con JWT |
-| CU02 | Iniciar sesión | Visitante | Tiene cuenta | Ingresa correo y contraseña; el sistema valida con BCrypt | Recibe un JWT válido por 2 h |
+| CU01 | Registrarse | Visitante | No tiene cuenta | Ingresa alias (3 a 30 caracteres), correo y contraseña (mínimo 8 caracteres, con letras y números) y acepta la Ley 1581 | Cuenta creada y sesión iniciada con JWT |
+| CU02 | Iniciar sesión | Visitante | Tiene cuenta | Ingresa correo y contraseña; el sistema la verifica con PBKDF2 (`PasswordHasher`) | Recibe un JWT válido por 2 h |
 | CU03 | Consultar reportes | Visitante | — | Elige un municipio o su GPS; el sistema calcula la distancia con Haversine | Lista ordenada de menor a mayor distancia |
 | CU04 | Filtrar por tipo | Visitante | Lista cargada | Toca una categoría | Solo se ven los reportes de esa categoría |
 | CU05 | Ver mapa | Visitante | Lista cargada | Cambia a la pestaña Mapa | Puntos de colores por categoría |
@@ -93,7 +93,7 @@ flowchart LR
 | CU09 | Confirmar reporte | Usuaria | Sesión activa y no ser la autora | Toca «A mí también» | Contador +1; una sola vez por usuaria |
 | CU10 | Mis reportes | Usuaria | Sesión activa | Abre «Mis reportes» | Lista de sus reportes |
 | CU11 | Cerrar sesión | Usuaria | Sesión activa | Toca «Salir» | Token eliminado del navegador |
-| CU12 | Geocodificar | Sistema | CU06 o CU07 | Consulta Nominatim; si no hay resultado, usa el centro del municipio | Coordenadas y fuente guardadas |
+| CU12 | Geocodificar | Sistema | CU06 o CU07 | Consulta Nominatim; si no hay resultado o queda a más de 25 km del municipio, usa el centro del municipio | Coordenadas y fuente guardadas |
 | CU13 | Usar GPS | Visitante | Navegador con permiso de ubicación | Acepta el permiso | Referencia redondeada a unos 100 m, sin guardarse |
 
 ---
@@ -108,12 +108,11 @@ classDiagram
         +string Email
         +string Alias
         +string PasswordHash
-        +DateTime FechaRegistro
+        +DateTimeOffset FechaRegistro
     }
     class Municipio {
         +int Id
         +string Nombre
-        +string CodigoDane
         +double Latitud
         +double Longitud
     }
@@ -129,31 +128,26 @@ classDiagram
         +int CategoriaId
         +string PuntoReferencia
         +string? Descripcion
-        +FranjaHoraria? FranjaHoraria
+        +string? FranjaHoraria
         +double Latitud
         +double Longitud
-        +FuenteCoordenadas Fuente
+        +string FuenteCoordenadas
         +bool EsAnonimo
-        +DateTime FechaCreacion
-        +DateTime? FechaActualizacion
-        +EsDe(int usuarioId) bool
+        +DateTimeOffset FechaCreacion
     }
     class Confirmacion {
-        +int Id
         +int ReporteId
         +int UsuarioId
-        +DateTime Fecha
+        +DateTimeOffset Fecha
     }
-    class FranjaHoraria {
-        <<enumeration>>
-        Tarde
-        Noche
-        Madrugada
+    class FranjasHorarias {
+        <<static>>
+        +string[] Validas = Tarde, Noche, Madrugada
     }
-    class FuenteCoordenadas {
-        <<enumeration>>
-        Nominatim
-        CentroMunicipio
+    class FuentesCoordenadas {
+        <<static>>
+        +Nominatim
+        +CentroMunicipio
     }
 
     Usuario "1" --> "0..*" Reporte : crea
@@ -161,15 +155,15 @@ classDiagram
     Reporte "1" *-- "0..*" Confirmacion : recibe
     Municipio "1" <-- "0..*" Reporte : ubicado en
     Categoria "1" <-- "0..*" Reporte : clasificado como
-    Reporte ..> FranjaHoraria
-    Reporte ..> FuenteCoordenadas
+    Reporte ..> FranjasHorarias
+    Reporte ..> FuentesCoordenadas
 ```
 
 ---
 
-## 3. Clases del backend por capas (MVC + servicios)
+## 3. Clases del backend por capas (MVC + servicios), ASP.NET Core 8
 
-**Model** = entidades y DTOs · **Controller** = controladores de la API · **View** = la SPA de Angular, que consume JSON (diagrama 4). La capa de servicios mantiene los controladores delgados.
+**Model** = entidades, DTOs y `AppDbContext` · **Controller** = `AuthController`, `CatalogosController` y `ReportesController` · **View** = la SPA de Angular, que consume JSON (diagrama 4). Los servicios agrupan lo reutilizable: emitir el JWT, geocodificar, calcular distancias y armar el JSON.
 
 ```mermaid
 classDiagram
@@ -177,54 +171,51 @@ classDiagram
 
     namespace Controllers {
         class AuthController {
-            +Registro(RegistroDto) ActionResult~AuthResponseDto~
-            +Login(LoginDto) ActionResult~AuthResponseDto~
+            +Registro(RegistroRequest) Task~ActionResult~AuthResponse~~
+            +Login(LoginRequest) Task~ActionResult~AuthResponse~~
         }
         class ReportesController {
-            +Listar(lat, lng, municipioRefId, categoriaId) ActionResult~List~ReporteDto~~
-            +Obtener(int id) ActionResult~ReporteDto~
-            +Mios() ActionResult~List~ReporteDto~~
-            +Crear(ReporteRequestDto) ActionResult~ReporteDto~
-            +Editar(int id, ReporteRequestDto) ActionResult~ReporteDto~
-            +Borrar(int id) IActionResult
-            +Confirmar(int id) IActionResult
-            +QuitarConfirmacion(int id) IActionResult
+            +Listar(lat, lng, municipioRefId, categoriaId) Task~ActionResult~List~ReporteDto~~~
+            +Obtener(int id) Task~ActionResult~ReporteDto~~
+            +Mios() Task~ActionResult~List~ReporteDto~~~
+            +Crear(ReporteRequest) Task~ActionResult~ReporteDto~~
+            +Editar(int id, ReporteRequest) Task~ActionResult~ReporteDto~~
+            +Borrar(int id) Task~IActionResult~
+            +Confirmar(int id) Task~IActionResult~
+            +QuitarConfirmacion(int id) Task~IActionResult~
         }
-        class MunicipiosController {
-            +Listar() ActionResult~List~MunicipioDto~~
-        }
-        class CategoriasController {
-            +Listar() ActionResult~List~CategoriaDto~~
+        class CatalogosController {
+            +Listar() Task~List~MunicipioDto~~
+            +Listar() Task~List~CategoriaDto~~
         }
     }
 
     namespace Services {
-        class IReporteService {
-            <<interface>>
-            +ListarAsync(FiltroReportes, int? usuarioId) Task~List~ReporteDto~~
-            +CrearAsync(ReporteRequestDto, int usuarioId) Task~ReporteDto~
-            +EditarAsync(int id, ReporteRequestDto, int usuarioId) Task~ReporteDto~
-            +BorrarAsync(int id, int usuarioId) Task
+        class TokenService {
+            -JwtOptions opciones
+            +Crear(Usuario u) (Token, ExpiraEn)
         }
-        class ReporteService
+        class JwtOptions {
+            +string Key
+            +string Issuer
+            +string Audience
+            +int HorasExpiracion
+        }
         class IGeocodingService {
             <<interface>>
-            +GeocodificarAsync(string referencia, Municipio m) Task~Coordenadas?~
+            +BuscarAsync(referencia, Municipio m) Task~(Lat, Lng)?~
         }
         class NominatimGeocodingService {
             -HttpClient http
-            -string userAgent
+            -double DistanciaMaximaKm = 25
         }
-        class ITokenService {
-            <<interface>>
-            +Generar(Usuario u) AuthResponseDto
-        }
-        class TokenService {
-            -JwtOptions opciones
-        }
-        class Distancia {
+        class Geo {
             <<static>>
-            +HaversineKm(lat1, lng1, lat2, lng2) double
+            +DistanciaKm(lat1, lng1, lat2, lng2) double
+        }
+        class ReporteMapper {
+            <<static>>
+            +ADto(Reporte r, int? usuarioActual, referencia) ReporteDto
         }
     }
 
@@ -237,9 +228,23 @@ classDiagram
             +DbSet~Confirmacion~ Confirmaciones
             #OnModelCreating(ModelBuilder)
         }
+        class Semilla {
+            <<static>>
+            +18 municipios
+            +6 categorías
+        }
     }
 
     namespace Dtos {
+        class ReporteRequest {
+            +int MunicipioId
+            +int CategoriaId
+            +string PuntoReferencia
+            +string? Descripcion
+            +string? FranjaHoraria
+            +bool EsAnonimo
+            +Validate() IEnumerable~ValidationResult~
+        }
         class ReporteDto {
             +int Id
             +string Categoria
@@ -254,15 +259,7 @@ classDiagram
             +bool EsMio
             +double? DistanciaKm
         }
-        class ReporteRequestDto {
-            +int MunicipioId
-            +int CategoriaId
-            +string PuntoReferencia
-            +string? Descripcion
-            +FranjaHoraria? FranjaHoraria
-            +bool EsAnonimo
-        }
-        class AuthResponseDto {
+        class AuthResponse {
             +string Token
             +DateTime ExpiraEn
             +string Alias
@@ -270,19 +267,26 @@ classDiagram
         }
     }
 
-    ReporteService ..|> IReporteService
+    class PasswordHasher~Usuario~ {
+        <<ASP.NET Core Identity>>
+        +HashPassword()
+        +VerifyHashedPassword()
+    }
+
     NominatimGeocodingService ..|> IGeocodingService
-    TokenService ..|> ITokenService
-    ReportesController --> IReporteService
-    AuthController --> ITokenService
+    TokenService --> JwtOptions
     AuthController --> AppDbContext
-    MunicipiosController --> AppDbContext
-    CategoriasController --> AppDbContext
-    ReporteService --> AppDbContext
-    ReporteService --> IGeocodingService
-    ReporteService ..> Distancia
-    ReporteService ..> ReporteDto : produce
-    ReportesController ..> ReporteRequestDto : recibe
+    AuthController --> TokenService
+    AuthController --> PasswordHasher~Usuario~
+    CatalogosController --> AppDbContext
+    ReportesController --> AppDbContext
+    ReportesController --> IGeocodingService
+    ReportesController ..> ReporteMapper
+    ReporteMapper ..> Geo
+    NominatimGeocodingService ..> Geo : valida 25 km
+    AppDbContext ..> Semilla : HasData
+    ReporteMapper ..> ReporteDto : produce
+    ReportesController ..> ReporteRequest : recibe
 ```
 
 ---
@@ -390,17 +394,20 @@ sequenceDiagram
     participant FE as Angular (Login)
     participant INT as authInterceptor
     participant API as AuthController
+    participant H as PasswordHasher
     participant DB as SQL Server
 
     U->>FE: Correo y contraseña
     FE->>FE: Validación del formulario
     FE->>INT: POST /api/auth/login
     INT->>API: (sin token)
-    API->>API: Rate limiting (máx. intentos/minuto)
+    API->>API: Rate limiting (10 por minuto por IP real)
     API->>DB: SELECT Usuario WHERE Email = @email
     DB-->>API: Usuario o null
-    alt Usuario existe y BCrypt.Verify(password, hash)
-        API->>API: TokenService.Generar() · HS256 · exp 2 h
+    API->>H: VerifyHashedPassword(hash, password)
+    H-->>API: Success / Failed (PBKDF2)
+    alt Usuario existe y la contraseña es correcta
+        API->>API: TokenService.Crear() · HS256 · exp 2 h
         API-->>FE: 200 {token, expiraEn, alias, email}
         FE->>FE: Guarda la sesión y redirige
         FE-->>U: «Hola, alias»
@@ -421,7 +428,6 @@ sequenceDiagram
     participant FE as Angular (Reportar)
     participant INT as authInterceptor
     participant C as ReportesController
-    participant S as ReporteService
     participant G as NominatimGeocodingService
     participant OSM as Nominatim (OSM)
     participant DB as SQL Server
@@ -430,22 +436,23 @@ sequenceDiagram
     FE->>INT: POST /api/reportes
     INT->>C: Authorization: Bearer JWT
     C->>C: [Authorize] valida firma, emisor y expiración
-    C->>C: Validación del DTO (longitudes, ids)
-    C->>S: CrearAsync(dto, usuarioId del claim sub)
-    S->>DB: Buscar Municipio y Categoria
-    S->>G: GeocodificarAsync("ref, municipio, Cundinamarca")
+    C->>C: Rate limiting (20 por minuto por usuaria)
+    C->>C: Validación de ReporteRequest (longitudes, franja válida)
+    C->>DB: Buscar Municipio y Categoria
+    C->>G: BuscarAsync("ref, municipio, Cundinamarca")
     G->>OSM: GET /search?q=...&countrycodes=co&limit=1 (User-Agent propio, timeout 5 s)
-    alt Nominatim encuentra el lugar
+    alt Nominatim encuentra el lugar a 25 km o menos del municipio
         OSM-->>G: [{lat, lon}]
-        G-->>S: Coordenadas (fuente = Nominatim)
-    else Sin resultados, error o timeout
-        OSM-->>G: [] / error
-        G-->>S: null
-        S->>S: Usar centro del municipio (fuente = CentroMunicipio)
+        G->>G: Geo.DistanciaKm(resultado, municipio) ≤ 25
+        G-->>C: Coordenadas (fuente = Nominatim)
+    else Sin resultados, a más de 25 km, error o timeout
+        OSM-->>G: [] / lejos / error
+        G-->>C: null
+        C->>C: Usar centro del municipio (fuente = CentroMunicipio)
     end
-    S->>DB: INSERT Reporte (consulta parametrizada por EF Core)
-    DB-->>S: Id
-    S-->>C: ReporteDto (sin correo ni UsuarioId)
+    C->>DB: INSERT Reporte (consulta parametrizada por EF Core)
+    DB-->>C: Id
+    C->>C: ReporteMapper.ADto() (sin correo ni UsuarioId)
     C-->>FE: 201 Created
     FE-->>U: «Reporte publicado» y vuelve a la lista
 ```
@@ -461,7 +468,6 @@ sequenceDiagram
     participant FE as Angular (Inicio)
     participant GEO as Navegador (Geolocation API)
     participant C as ReportesController
-    participant S as ReporteService
     participant DB as SQL Server
     participant T as Teselas OSM
 
@@ -474,11 +480,10 @@ sequenceDiagram
         V->>FE: Selecciona el municipio
     end
     FE->>C: GET /api/reportes?lat&lng | municipioRefId [&categoriaId]
-    C->>S: ListarAsync(filtro, usuarioId?)
-    S->>DB: SELECT reportes WHERE categoria = @cat (con municipio y categoría)
-    DB-->>S: Filas
-    S->>S: distancia = Haversine(ref, reporte) y ordenar ascendente
-    S-->>C: ReporteDto[]
+    C->>DB: SELECT reportes WHERE categoria = @cat (con municipio, categoría y confirmaciones)
+    DB-->>C: Filas
+    C->>C: ReporteMapper.ADto() + Geo.DistanciaKm(ref, reporte)
+    C->>C: Ordenar por DistanciaKm ascendente
     C-->>FE: 200 JSON
     par Lista
         FE->>FE: Pinta las tarjetas (distancia en m/km)
@@ -563,12 +568,12 @@ flowchart LR
         end
     end
 
-    subgraph BE["API ASP.NET Core 10"]
+    subgraph BE["API ASP.NET Core 8"]
         direction TB
-        CT["CONTROLADORES<br/>Auth · Reportes · Municipios · Categorias"]
-        SR["Servicios<br/>ReporteService · TokenService<br/>NominatimGeocodingService"]
-        MD["MODELO<br/>Entidades + DTOs"]
-        EF["EF Core · AppDbContext"]
+        CT["CONTROLADORES<br/>Auth · Catalogos · Reportes"]
+        SR["Servicios<br/>TokenService · NominatimGeocodingService<br/>Geo · ReporteMapper"]
+        MD["MODELO<br/>Entidades + DTOs + PasswordHasher"]
+        EF["EF Core · AppDbContext + Semilla"]
     end
 
     DB[("SQL Server")]
@@ -608,7 +613,7 @@ flowchart TB
         direction TB
         subgraph RED["Red interna de Docker"]
             WEB["Contenedor web<br/>nginx-unprivileged<br/>Angular compilado<br/>puerto 8080"]
-            API["Contenedor api<br/>ASP.NET Core 10<br/>usuario app · puerto 8080"]
+            API["Contenedor api<br/>ASP.NET Core 8<br/>usuario app · puerto 8080<br/>UseForwardedHeaders"]
             DB[("Contenedor db<br/>SQL Server 2022 Express<br/>puerto 1433")]
             VOL[["Volumen sqldata"]]
         end
@@ -648,28 +653,27 @@ erDiagram
 
     USUARIOS {
         int Id PK
-        nvarchar150 Email UK "minúsculas"
-        nvarchar40 Alias
-        nvarchar100 PasswordHash "BCrypt"
-        datetime2 FechaRegistro "UTC"
+        nvarchar254 Email UK
+        nvarchar30 Alias
+        nvarchar PasswordHash "PBKDF2"
+        datetimeoffset FechaRegistro
     }
     MUNICIPIOS {
         int Id PK
         nvarchar80 Nombre
-        nvarchar5 CodigoDane
         float Latitud
         float Longitud
     }
     CATEGORIAS {
         int Id PK
-        nvarchar50 Nombre
+        nvarchar60 Nombre
         nvarchar7 ColorHex
     }
     REPORTES {
         int Id PK
-        int UsuarioId FK
-        int MunicipioId FK "índice"
-        int CategoriaId FK "índice"
+        int UsuarioId FK "RESTRICT"
+        int MunicipioId FK "RESTRICT, índice"
+        int CategoriaId FK "RESTRICT, índice"
         nvarchar200 PuntoReferencia
         nvarchar500 Descripcion "nullable"
         nvarchar20 FranjaHoraria "nullable"
@@ -677,16 +681,15 @@ erDiagram
         float Longitud
         nvarchar20 FuenteCoordenadas
         bit EsAnonimo
-        datetime2 FechaCreacion
-        datetime2 FechaActualizacion "nullable"
+        datetimeoffset FechaCreacion "índice"
     }
     CONFIRMACIONES {
-        int Id PK
-        int ReporteId FK "ON DELETE CASCADE"
-        int UsuarioId FK "ON DELETE NO ACTION"
-        datetime2 Fecha
+        int ReporteId PK, FK "CASCADE"
+        int UsuarioId PK, FK "RESTRICT"
+        datetimeoffset Fecha
     }
 ```
 
-**Restricción única:** `CONFIRMACIONES (ReporteId, UsuarioId)`, para que nadie confirme dos veces el mismo reporte.
-**Nota técnica:** `UsuarioId` en `CONFIRMACIONES` usa `NO ACTION`. Si las dos llaves foráneas tuvieran cascada, SQL Server rechazaría la migración por *multiple cascade paths*.
+**Llave primaria compuesta:** `CONFIRMACIONES (ReporteId, UsuarioId)`, así que nadie puede confirmar dos veces el mismo reporte.
+**Nota técnica:** las llaves hacia `USUARIOS` usan `RESTRICT` y solo `ReporteId` usa cascada. Si hubiera dos caminos de cascada hacia `CONFIRMACIONES`, SQL Server rechazaría el esquema por *multiple cascade paths*.
+**Datos iniciales (`Semilla`):** 18 municipios de Cundinamarca y la zona metropolitana, y 6 categorías: Poca iluminación, Zona solitaria, Acoso callejero, Robo o atraco, Transporte inseguro y Otro.

@@ -1,13 +1,13 @@
 # Camino Seguro — Manual técnico (instalación, ejecución y despliegue)
 
-**Versión 1.0 · 4 de noviembre de 2026**
+**Versión 1.1 · 4 de noviembre de 2026**
 
 ## 1. Repositorios y estructura
 
 | Repositorio | Carpeta local | Contenido |
 |---|---|---|
 | https://github.com/sergionieto1604/caminoSeguro | `camino_segurofront/` | SPA Angular, Dockerfile del frontend, `nginx.conf`, `deploy/` (docker-compose) y `docs/` |
-| https://github.com/sergionieto1604/caminoSeguroBack | `camino_seguroback/` | API ASP.NET Core 10, EF Core y `Dockerfile` |
+| https://github.com/sergionieto1604/caminoSeguroBack | `camino_seguroback/` | API ASP.NET Core 8, EF Core y `Dockerfile` |
 
 ```
 hackaton/
@@ -17,8 +17,8 @@ hackaton/
 │   ├── deploy/{docker-compose.yml, .env.example, Dockerfile.backend}
 │   └── docs/
 └── camino_seguroback/
-    ├── CaminoSeguro.Api/   (Controllers, Services, Models, Dtos, Data, Migrations)
-    └── Dockerfile          (copiado desde deploy/Dockerfile.backend)
+    ├── CaminoSeguro.Api/   (Controllers, Services, Models, Dtos, Data)
+    └── Dockerfile          (.NET 8, usuario sin privilegios, puerto 8080)
 ```
 
 ## 2. Requisitos
@@ -27,9 +27,9 @@ hackaton/
 |---|---|---|
 | Node.js | **≥ 24.15.0** o **≥ 26.0.0** (Angular 22.2 rechaza la 24.14) | `node -v` |
 | Angular CLI | 22.2.5 (viene incluido en el proyecto) | `npx ng version` |
-| .NET SDK | 10.0 | `dotnet --version` |
+| .NET SDK | 8.0 | `dotnet --list-sdks` |
 | SQL Server | 2022 Express/Developer, o el contenedor de Docker | SSMS |
-| Docker + Compose | Docker 24 o superior | `docker compose version` |
+| Docker + Compose | Docker Desktop (Windows) o Docker 24+ (Linux) | `docker compose version` |
 | Git | 2.40 o superior | `git --version` |
 
 ---
@@ -54,12 +54,12 @@ usarMock: false,
 ### 3.3 Backend
 ```bash
 cd camino_seguroback/CaminoSeguro.Api
-dotnet user-secrets set "Jwt:Key" "una-clave-aleatoria-de-mas-de-32-caracteres"
-dotnet user-secrets set "ConnectionStrings:Default" "Server=localhost;Database=CaminoSeguro;Trusted_Connection=True;TrustServerCertificate=True"
-dotnet ef database update      # crea las tablas y carga municipios y categorías
-dotnet run
+dotnet dev-certs https --trust
+dotnet run --launch-profile https     # https://localhost:7001/swagger
 ```
-**Los secretos van en `user-secrets` y no en `appsettings.json`**, para que nunca lleguen a GitHub.
+- Al arrancar, `EnsureCreated()` **crea la base, las tablas y los datos iniciales** (18 municipios y 6 categorías). No hace falta `dotnet ef`.
+- En desarrollo se crea también la usuaria `demo@demo.com` / `Demo1234`. En producción no existe.
+- `appsettings.Development.json` apunta a `localhost\SQLEXPRESS` y trae una clave JWT **solo para desarrollo**. En producción la clave y la conexión llegan por variables de entorno, nunca desde el repositorio.
 
 ### 3.4 Variables de configuración del backend
 
@@ -68,8 +68,9 @@ dotnet run
 | `ConnectionStrings__Default` | `Server=db,1433;Database=CaminoSeguro;...` | Conexión a SQL Server |
 | `Jwt__Key` | 48 bytes aleatorios en base64 | Firma HS256 (mínimo 32 bytes) |
 | `Jwt__Issuer` / `Jwt__Audience` | `CaminoSeguro` / `CaminoSeguroWeb` | Validación del token |
-| `Cors__AllowedOrigins` | `http://localhost:4200` | Orígenes permitidos (no se usa `*`) |
+| `Cors__AllowedOrigins__0` | `http://localhost:4200` | Orígenes permitidos; `__1`, `__2`... para más (no se usa `*`) |
 | `Nominatim__UserAgent` | `CaminoSeguro-Hackaton/1.0` | Lo exige la política de Nominatim |
+| `Swagger__Habilitado` | `true` | Muestra Swagger en producción (por defecto, apagado) |
 
 ---
 
@@ -81,7 +82,7 @@ Hay tres contenedores en una red interna: `web` (nginx, puerto público 80), `ap
 ```mermaid
 flowchart LR
     I((Internet)) -- ":80" --> W["web · nginx"]
-    W -- "/api" --> A["api · .NET 10"]
+    W -- "/api" --> A["api · .NET 8"]
     A --> D[("db · SQL Server")]
 ```
 
@@ -100,8 +101,7 @@ mkdir hackaton && cd hackaton
 git clone https://github.com/sergionieto1604/caminoSeguro.git camino_segurofront
 git clone https://github.com/sergionieto1604/caminoSeguroBack.git camino_seguroback
 
-# 3) Backend: el Dockerfile va en la raíz del repo del back
-#    (si no está, copiar deploy/Dockerfile.backend y ajustar APP_NAME)
+# 3) El backend ya trae su Dockerfile en la raíz
 ls camino_seguroback/Dockerfile
 
 # 4) Configurar los secretos
@@ -116,7 +116,7 @@ docker compose logs -f api # verificar que aplicó las migraciones
 ```
 Luego se abre `http://<IP-pública>` en el navegador.
 
-**Requisito para el backend:** al arrancar debe ejecutar `db.Database.Migrate()` con reintentos, para crear el esquema y los datos iniciales. Gracias a `depends_on: service_healthy`, la API espera a que SQL Server esté listo.
+La API ejecuta `EnsureCreated()` al arrancar y crea el esquema y los datos iniciales. Gracias a `depends_on: service_healthy`, espera a que SQL Server esté listo. **La primera vez la descarga es lenta:** la imagen de SQL Server pesa unos 630 MB. En producción no existe la usuaria demo: hay que registrarse.
 
 ### 4.4 Actualizar después de cambios
 ```bash
@@ -130,7 +130,7 @@ cd ../camino_segurofront/deploy && docker compose up -d --build
 | Pieza | Servicio | Paso clave |
 |---|---|---|
 | Frontend | Netlify | Poner la URL completa de la API en `environment.ts`, correr `npm run build` y arrastrar `dist/ruta-segura/browser` (incluye `_redirects`) |
-| API | Azure App Service (Linux, .NET 10) | Variables de entorno de la §3.4 y `Cors__AllowedOrigins` = URL de Netlify |
+| API | Azure App Service (Linux, .NET 8) | Variables de entorno de la §3.4 y `Cors__AllowedOrigins__0` = URL de Netlify |
 | Base de datos | Azure SQL Database | Firewall: «Permitir servicios de Azure» y la IP del equipo para SSMS |
 
 ---
@@ -151,6 +151,8 @@ cd ../camino_segurofront/deploy && docker compose up -d --build
 | Error de CORS en la consola | Falta el origen en `Cors__AllowedOrigins` | Agregar la URL exacta del frontend, sin barra al final |
 | 401 en todas las peticiones | La clave JWT cambió o el token expiró | Cerrar sesión y volver a ingresar; revisar que `Jwt__Key` sea la misma |
 | `db` queda *unhealthy* | Poca RAM o contraseña débil | Mínimo 4 GB en la VM; contraseña con mayúscula, minúscula, número y símbolo |
-| Migración: *multiple cascade paths* | Dos FK con cascada hacia `Confirmaciones` | `OnDelete(DeleteBehavior.NoAction)` en `Confirmacion.UsuarioId` |
+| *multiple cascade paths* al crear la base | Dos FK con cascada hacia `Confirmaciones` | Ya resuelto: `DeleteBehavior.Restrict` en las llaves hacia `Usuarios` |
+| 429 «Demasiados intentos» para todos | El *rate limiting* ve la IP de nginx | Ya resuelto con `UseForwardedHeaders` en `Program.cs` |
+| `port 80 is already allocated` | Otro programa usa el puerto 80 | En `docker-compose.yml` cambiar `"80:8080"` por `"8081:8080"` |
 | Mapa gris | Sin internet, o la CSP bloquea las teselas | Revisar `img-src` en `nginx.conf` |
 | GPS no funciona en la nube | Se está usando HTTP | Configurar HTTPS o usar el selector de municipio |

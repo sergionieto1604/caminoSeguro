@@ -1,6 +1,6 @@
 # Camino Seguro — Documento de arquitectura y decisiones técnicas
 
-**Estándar de referencia:** ISO/IEC/IEEE 42010:2022 (descripción de arquitectura) · **Versión:** 1.0 · **Fecha:** 4 de noviembre de 2026
+**Estándar de referencia:** ISO/IEC/IEEE 42010:2022 (descripción de arquitectura) · **Versión:** 1.1 · **Fecha:** 4 de noviembre de 2026
 **Equipo:** Yeison Hernández (frontend) · Alejandro Martínez (backend) · Alejandro Nieto (repositorios, despliegue y documentación)
 **Contexto:** Hackatón, ciclo de Profundización. Problema 6: *Ruta segura para mujeres en el espacio público nocturno*.
 
@@ -21,30 +21,19 @@ Aplicación web colaborativa en la que usuarias autenticadas con **JWT** reporta
 | Requisito | Cómo se cumple | Dónde |
 |---|---|---|
 | R1. Reporte con usuaria autenticada (JWT), municipio, punto de referencia y categoría | `POST /api/reportes` con `[Authorize]` y formulario validado | `ReportesController`, `pages/reportar` |
-| R2. Lista ordenada por cercanía | Tabla precargada de municipios y geocodificación con Nominatim; distancia calculada con **Haversine** | `ReporteService`, `GET /api/reportes` |
+| R2. Lista ordenada por cercanía | Tabla precargada de 18 municipios y geocodificación con Nominatim; distancia calculada con **Haversine** | `Geo.DistanciaKm`, `ReportesController.Listar` |
 | R2b. Filtro por tipo de riesgo | Parámetro `categoriaId` y chips de filtro en la interfaz | `pages/inicio` |
 | R3. API externa con mapa | Teselas de **OpenStreetMap** dibujadas con **Leaflet**, más **Nominatim** para geocodificar | `shared/mapa.ts`, `NominatimGeocodingService` |
-| Profundización: MVC | Modelo y controladores en ASP.NET Core; la vista es una SPA en Angular | §3.2 |
+| Profundización: MVC | Modelo y controladores en ASP.NET Core 8; la vista es una SPA en Angular | §3.2 |
 | Profundización: despliegue en la nube | Docker Compose en una instancia en la nube | §3.4 y manual técnico |
 
 ### 1.4 Referencias
-- ISO/IEC/IEEE 42010:2022, *Systems and software engineering — Architecture description*.
-- OWASP Top 10 (2021) y la OWASP ASVS como guía de controles de seguridad.
-- Ley 1581 de 2012 de Colombia (protección de datos personales).
-- Políticas de uso de Nominatim y de las teselas de OpenStreetMap.
-- Anexo A: `02-diagramas-uml.md`, con los 12 diagramas UML en Mermaid.
+ISO/IEC/IEEE 42010:2022 · OWASP Top 10 (2021) y ASVS · Ley 1581 de 2012 · Políticas de uso de Nominatim y de las teselas de OpenStreetMap · **Anexo A:** `02-diagramas-uml.md` (12 diagramas UML en Mermaid).
 
 ---
 
 ## 2. Partes interesadas y preocupaciones
-
-| Parte interesada | Preocupación principal | Vista que la responde |
-|---|---|---|
-| Usuarias (mujeres de Cundinamarca) | Reportar rápido desde el celular, sin exponer su identidad | Funcional, seguridad |
-| Visitantes | Saber qué zonas evitar cerca de donde están | Funcional, procesos |
-| Jurado | Cumplimiento de requisitos, MVC, JWT, API externa, nube, UX y seguridad | Todas |
-| Equipo de desarrollo | Trabajar en paralelo sin bloquearse y desplegar en poco tiempo | Desarrollo, física |
-| OpenStreetMap | Que se respeten sus políticas de uso | Procesos (ADR-05) |
+**Usuarias:** reportar rápido desde el celular sin exponer su identidad (vistas funcional y de seguridad). **Visitantes:** saber qué zonas evitar cerca de donde están (funcional y procesos). **Jurado:** requisitos, MVC, JWT, API externa, nube, UX y seguridad (todas las vistas). **Equipo:** trabajar en paralelo y desplegar en poco tiempo (desarrollo y física). **OpenStreetMap:** que se respeten sus políticas de uso (procesos, ADR-05).
 
 ---
 
@@ -55,7 +44,7 @@ Aplicación web colaborativa en la que usuarias autenticadas con **JWT** reporta
 ```mermaid
 flowchart LR
     U(["👩 Usuaria / 👤 Visitante<br/>navegador móvil o de escritorio"])
-    S["<b>Camino Seguro</b><br/>SPA Angular + API ASP.NET Core<br/>+ SQL Server"]
+    S["<b>Camino Seguro</b><br/>SPA Angular 22 + API ASP.NET Core 8<br/>+ SQL Server"]
     N["Nominatim<br/>geocodificación"]
     T["Teselas OSM<br/>mapa base"]
     U -- "HTTPS" --> S
@@ -69,18 +58,18 @@ flowchart LR
 
 ### 3.2 Vista lógica: MVC con la vista desacoplada
 
-Aplicamos **MVC distribuido**. El **Modelo** (entidades de EF Core y DTOs) y los **Controladores** (`ApiController`) viven en la API de .NET. La **Vista** es la SPA de Angular, que se comunica con los controladores mediante JSON sobre HTTP. Entre el controlador y los datos agregamos una **capa de servicios** para que los controladores no contengan reglas de negocio.
+Aplicamos **MVC distribuido**. El **Modelo** (entidades de EF Core y DTOs) y los **Controladores** (`ApiController`) viven en la API de .NET. La **Vista** es la SPA de Angular, que se comunica con los controladores mediante JSON sobre HTTP. Las tareas reutilizables (emitir el JWT, geocodificar, calcular distancias y armar el JSON de salida) están en **servicios** aparte, para que los controladores solo orquesten.
 
 ```mermaid
 flowchart LR
     subgraph V["VISTA — Angular"]
         P["Páginas y componentes"] --> SV["ApiService / AuthService"]
     end
-    subgraph C["CONTROLADOR — ASP.NET Core"]
-        CT["AuthController<br/>ReportesController<br/>MunicipiosController<br/>CategoriasController"]
+    subgraph C["CONTROLADOR — ASP.NET Core 8"]
+        CT["AuthController<br/>CatalogosController<br/>ReportesController"]
     end
     subgraph M["MODELO"]
-        SR["Servicios de negocio"] --> EN["Entidades + DTOs<br/>EF Core"] --> DB[("SQL Server")]
+        SR["Servicios<br/>TokenService · Geocoding<br/>Geo · ReporteMapper"] --> EN["Entidades + DTOs<br/>EF Core"] --> DB[("SQL Server")]
     end
     SV -- "HTTP / JSON + JWT" --> CT --> SR
     classDef v fill:#fff4ee,stroke:#ff8a5b,color:#3a1a0a
@@ -95,17 +84,17 @@ flowchart LR
 
 ### 3.3 Vista de procesos
 Hay tres flujos críticos, con su diagrama de secuencia en el Anexo A:
-- **Iniciar sesión (diagrama 5):** BCrypt verifica la contraseña, se emite un JWT HS256 que expira en 2 h, y el login tiene *rate limiting*.
-- **Crear reporte (diagrama 6):** Nominatim geocodifica el punto de referencia con un timeout de 5 s. Si no lo encuentra, se usa el **centro del municipio** y se guarda de dónde salieron las coordenadas.
-- **Listar por cercanía (diagrama 7):** se filtra en SQL y se ordena en memoria con Haversine. El volumen de reportes por municipio es bajo, así que esto es más simple que usar tipos `geography`.
+- **Iniciar sesión (diagrama 5):** `PasswordHasher` de ASP.NET Core Identity (PBKDF2 con sal) verifica la contraseña, se emite un JWT HS256 que expira en 2 h, y el login tiene *rate limiting* de 10 intentos por minuto por IP.
+- **Crear reporte (diagrama 6):** Nominatim geocodifica el punto de referencia con un timeout de 5 s. Si falla, no encuentra nada o devuelve un punto **a más de 25 km del municipio** (un homónimo en otra región), se usa el **centro del municipio** y se guarda de dónde salieron las coordenadas.
+- **Listar por cercanía (diagrama 7):** se filtra en SQL y se ordena en memoria con Haversine (`Geo.DistanciaKm`). El volumen de reportes por municipio es bajo, así que esto es más simple que usar tipos `geography`.
 
 ### 3.4 Vista física (despliegue)
-Se despliega con **Docker Compose en una instancia en la nube** (diagrama 11). Hay tres contenedores: `web` (nginx sin privilegios con Angular compilado), `api` (ASP.NET Core 10 con el usuario `app`) y `db` (SQL Server 2022 Express con un volumen persistente). **Solo `web` publica un puerto.** nginx reenvía `/api/*` a la API, así que el navegador ve un único origen y no hace falta abrir CORS. La API y la base de datos no son accesibles desde internet.
+Se despliega con **Docker Compose en una instancia en la nube** (diagrama 11). Hay tres contenedores: `web` (nginx sin privilegios con Angular compilado), `api` (ASP.NET Core 8 con el usuario `app`) y `db` (SQL Server 2022 Express con un volumen persistente). **Solo `web` publica un puerto.** nginx reenvía `/api/*` a la API, así que el navegador ve un único origen y no hace falta abrir CORS. La API lee la IP real de cada visitante desde la cabecera `X-Forwarded-For` (`UseForwardedHeaders`), para que el *rate limiting* no trate a todos como si vinieran de nginx. La API y la base de datos no son accesibles desde internet.
 
 ### 3.5 Vista de información
-Hay cinco tablas: `Usuarios`, `Municipios`, `Categorias`, `Reportes` y `Confirmaciones` (diagrama 12).
+Hay cinco tablas: `Usuarios`, `Municipios`, `Categorias`, `Reportes` y `Confirmaciones` (diagrama 12). Al arrancar, la API ejecuta `EnsureCreated()` y siembra **18 municipios** de Cundinamarca con sus coordenadas y **6 categorías** de riesgo con su color.
 - `Reportes` guarda las coordenadas ya calculadas, para no geocodificar dos veces.
-- `Confirmaciones` tiene una restricción única `(ReporteId, UsuarioId)`.
+- `Confirmaciones` usa la llave primaria compuesta `(ReporteId, UsuarioId)`, así que nadie puede confirmar dos veces el mismo reporte.
 - El reporte guarda internamente el `UsuarioId`, para saber quién puede editarlo, pero la API **nunca lo expone**: solo muestra el alias o «Anónima».
 
 ---
@@ -114,12 +103,12 @@ Hay cinco tablas: `Usuarios`, `Municipios`, `Categorias`, `Reportes` y `Confirma
 
 | ID | Decisión | Alternativas consideradas | Justificación |
 |---|---|---|---|
-| ADR-01 | SPA en Angular 22 y API REST en ASP.NET Core 10 (MVC distribuido) | MVC con vistas Razor | Separa responsabilidades, permite trabajo en paralelo y deja la API lista para otros clientes |
+| ADR-01 | SPA en Angular 22 y API REST en ASP.NET Core 8 LTS (MVC distribuido) | MVC con vistas Razor | Separa responsabilidades, permite trabajo en paralelo y deja la API lista para otros clientes |
 | ADR-02 | **Contrato primero** y un **backend simulado** en Angular (`mockBackendInterceptor`) | Esperar a que la API estuviera lista | El frontend se desarrolló y probó desde la primera hora; para pasar a la API real solo se cambia un parámetro |
 | ADR-03 | JWT HS256 de 2 h, firmado con una clave de ≥ 32 bytes leída de variables de entorno | Cookies de sesión | Lo exige el enunciado; no requiere guardar estado en el servidor. La clave nunca está en el repositorio |
-| ADR-04 | BCrypt (`BCrypt.Net-Next`) con *work factor* 11–12 | SHA-256 con sal | Es lento a propósito y resistente a fuerza bruta |
-| ADR-05 | **Nominatim** llamado solo desde el backend, con *User-Agent* propio, timeout de 5 s y respaldo con el centro del municipio | Llamarlo desde el navegador; API de Google | Es gratuito, respeta la política de 1 petición/s y la app no se cae si el servicio falla |
-| ADR-06 | **Haversine** en memoria después de filtrar en SQL | Tipo `geography` de SQL Server | Es suficientemente preciso a escala municipal y mucho más simple |
+| ADR-04 | `PasswordHasher<Usuario>` de ASP.NET Core Identity (PBKDF2 con sal aleatoria y miles de iteraciones) | BCrypt (paquete externo); SHA-256 con sal | Viene en el framework, sin dependencias extra. PBKDF2 es lento a propósito, está recomendado por el NIST y resiste fuerza bruta |
+| ADR-05 | **Nominatim** llamado solo desde el backend, con *User-Agent* propio, timeout de 5 s, descarte de resultados a más de 25 km y respaldo con el centro del municipio | Llamarlo desde el navegador; API de Google | Es gratuito, respeta la política de 1 petición/s y la app no se cae si el servicio falla |
+| ADR-06 | **Haversine** (`Geo.DistanciaKm`) en memoria después de filtrar en SQL | Tipo `geography` de SQL Server | Es suficientemente preciso a escala municipal y mucho más simple |
 | ADR-07 | **Leaflet** con marcadores circulares coloreados por categoría | Google Maps; marcadores con imágenes | Gratuito, liviano y sin imágenes que se pierdan al desplegar |
 | ADR-08 | Reporte **anónimo hacia las demás**, pero con autora registrada internamente | Reportes totalmente anónimos sin cuenta | Cumple R1 y permite que solo la autora edite o borre; protege la identidad (Ley 1581) |
 | ADR-09 | Docker Compose en una instancia, con nginx como proxy inverso | PaaS separados (App Service + Netlify) | Un solo comando despliega todo y hay un solo origen, sin CORS. El PaaS queda como alternativa en el manual técnico |
@@ -132,21 +121,18 @@ Hay cinco tablas: `Usuarios`, `Municipios`, `Categorias`, `Reportes` y `Confirma
 | Riesgo (OWASP) | Control aplicado |
 |---|---|
 | A01 Control de acceso roto | `[Authorize]` en las escrituras. El servidor compara el `sub` del token con el `UsuarioId` del reporte y responde 403 si no coinciden. Los *guards* de Angular son solo una ayuda de UX |
-| A02 Fallas criptográficas | Contraseñas con BCrypt. Clave JWT de ≥ 32 bytes en variables de entorno (`.env` fuera de git). HTTPS en la nube |
+| A02 Fallas criptográficas | Contraseñas con PBKDF2 (`PasswordHasher`). Clave JWT de ≥ 32 bytes en variables de entorno (`.env` fuera de git). HTTPS en la nube |
 | A03 Inyección (SQL) | EF Core genera consultas parametrizadas; no se usa `FromSqlRaw` con texto concatenado. Los DTOs se validan con longitudes, rangos e ids existentes |
 | A03 Inyección (XSS) | Angular escapa todas las interpolaciones; no se usa `innerHTML`. Los popups de Leaflet se arman con `textContent`. La CSP de nginx tiene `script-src 'self'` |
 | A04 Diseño inseguro | El formulario advierte que no se escriban nombres ni datos de personas: se reportan **lugares**. El correo nunca se expone. El GPS se redondea a unos 100 m y no se guarda |
 | A05 Configuración insegura | CORS restringido al origen propio. nginx con `server_tokens off` y cabeceras `X-Frame-Options`, `nosniff`, `Referrer-Policy` y `Permissions-Policy`. Contenedores sin root. La base de datos no se expone |
-| A07 Fallas de autenticación | *Rate limiting* en el login y en la creación de reportes. Mensaje genérico «Credenciales inválidas». Expiración de 2 h y cierre de sesión automático al recibir un 401 |
+| A07 Fallas de autenticación | *Rate limiting*: 10 por minuto por IP en login y registro, 20 por minuto por usuaria al escribir, con la IP real detrás de nginx. Mensaje genérico «Credenciales inválidas». Expiración de 2 h y cierre de sesión automático al recibir un 401 |
 | A10 SSRF y redirecciones | El parámetro `?volver=` solo acepta rutas internas. El backend solo consulta un host fijo (Nominatim) |
 
 ---
 
 ## 6. Atributos de calidad: UX y usabilidad (35 % de la calificación)
-- **Diseño para celular:** lista y mapa en pestañas en el celular y lado a lado en pantallas grandes. Botón flotante «Reportar» y botón de enviar siempre visibles abajo, al alcance del pulgar.
-- **Retroalimentación inmediata:** esqueletos de carga, mensajes cortos de confirmación o error, la confirmación «A mí también» se ve al instante (y se revierte si falla), y estados vacíos que invitan a reportar.
-- **Accesibilidad:** contraste alto, objetivos táctiles de al menos 40 px, `aria-*` en los controles, enlace para saltar al contenido, foco en el primer error del formulario y respeto por `prefers-reduced-motion`.
-- **Prevención de errores:** validación en el cliente y en el servidor, contador de caracteres, confirmación antes de borrar y aviso cuando la ubicación es aproximada.
+**Diseño para celular:** lista y mapa en pestañas en el celular y lado a lado en pantallas grandes; botón «Reportar» y botón de enviar siempre al alcance del pulgar. **Retroalimentación inmediata:** esqueletos de carga, mensajes de confirmación o error, «A mí también» instantáneo y estados vacíos que invitan a reportar. **Accesibilidad:** alto contraste, objetivos táctiles de al menos 40 px, atributos `aria-*`, foco en el primer error y respeto por `prefers-reduced-motion`. **Prevención de errores:** validación en cliente y servidor con los mismos límites, contador de caracteres, confirmación antes de borrar y aviso de ubicación aproximada.
 
 ---
 
@@ -158,5 +144,4 @@ Hay cinco tablas: `Usuarios`, `Municipios`, `Categorias`, `Reportes` y `Confirma
 | Reportes falsos o abusivos | Las confirmaciones sirven como señal de confianza | Moderación, botón «reportar abuso», reputación |
 | Nominatim no encuentra referencias locales | Respaldo con el centro del municipio, avisado en la interfaz | Selector de punto sobre el mapa y geocodificación inversa |
 | Token en `localStorage` | Escapado de Angular, CSP y expiración corta | Cookie `HttpOnly` + `SameSite` con *refresh tokens* |
-| Una sola instancia | Reinicio automático de los contenedores y volumen persistente | Base de datos gestionada, réplicas y respaldos automáticos |
-| Sin análisis por horario | Se guarda la franja horaria | Mapa de calor por franja y alertas por zona |
+| Una sola instancia | Reinicio automático de los contenedores y volumen persistente | Base de datos gestionada, réplicas y respaldos; mapa de calor por franja horaria |

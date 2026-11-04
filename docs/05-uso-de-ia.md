@@ -1,13 +1,13 @@
 # Camino Seguro — Documento de uso de inteligencia artificial
 
-**Versión 1.0 · 4 de noviembre de 2026** · Equipo: Yeison Hernández · Alejandro Martínez · Alejandro Nieto
+**Versión 1.1 · 4 de noviembre de 2026** · Equipo: Yeison Hernández · Alejandro Martínez · Alejandro Nieto
 
 ## 1. Herramientas usadas
 
 | Herramienta | Modelo | Quién la usó | Para qué |
 |---|---|---|---|
 | **Claude** (claude.ai, con herramientas de código, terminal y navegador) | Claude Opus 5.5 | Yeison (frontend y documentación) | Revisar las ideas, plan por horas, modelo de datos, contrato de la API, generar y **probar** el frontend Angular, Docker, documentación y diagramas Mermaid |
-| **Claude Code** | Claude | Alejandro Martínez (backend) | Generar el backend .NET siguiendo el contrato del `README` del frontend |
+| **Claude** (claude.ai, conversación del mismo proyecto) | Claude Opus 5.5 | Alejandro Martínez (backend) | Generar el backend .NET 8 siguiendo el contrato del `README` del frontend y adaptarlo a los modelos que él ya tenía |
 | Búsqueda web integrada en Claude | — | Yeison | Verificar que Angular 22.2.5 existe y sus requisitos (TypeScript 6, Node) |
 
 **Principio de trabajo:** la IA propone y el equipo decide y verifica. Ningún código entró al repositorio sin compilarse y probarse.
@@ -55,7 +55,16 @@ flowchart LR
 
 *Resultado:* Dockerfile en dos etapas, nginx con cabeceras de seguridad, docker-compose y estos documentos. Los 12 diagramas se **renderizaron con mermaid-cli** para confirmar que no tienen errores de sintaxis.
 
-> **Pendiente de completar por Alejandro Martínez:** los 2 o 3 prompts más importantes que usó en Claude Code para el backend, y qué tuvo que corregir.
+**P6 — Backend a partir del contrato (Martínez).** Pegó el `models.ts` del front y pidió:
+> «creame lo que deberia ir en el back que responda a lo que hay en front»
+
+Luego aclaró la versión: «en 8.0».
+
+*Resultado:* un backend ASP.NET Core 8 con los nombres de campos idénticos al front, rate limiting, validación con DataAnnotations, Nominatim con descarte a más de 25 km, `Dockerfile` y Swagger con JWT.
+
+**P7 — Revisión cruzada (Yeison).** Antes de desplegar le pedimos a Claude revisar el back contra el front y el `docker-compose`.
+
+*Resultado:* encontró tres problemas reales que nadie había visto. Primero, detrás de nginx el *rate limiting* iba a bloquear a todos a la vez; se corrigió con `UseForwardedHeaders`. Segundo, CORS no tomaba la variable del compose por estar definido como lista. Tercero, el front aceptaba alias de 2 a 40 caracteres y el back solo de 3 a 30.
 
 ---
 
@@ -78,7 +87,9 @@ flowchart LR
 | Dio comandos de **PowerShell** cuando estábamos en **CMD** | Error `'Copy-Item' is not recognized` | Pasó a comandos de CMD (`tar`, `xcopy`) |
 | Dio varios comandos juntos sin insistir en que se pegaran uno por uno y dentro del repo. Se ejecutaron en la carpeta equivocada y dejaron archivos sueltos | `dir` mostró archivos duplicados en `hackaton` | Desde ahí dio un comando por bloque y guió la limpieza archivo por archivo, sin borrar a ciegas |
 | En su primera versión, el backend simulado perdía la sesión al recargar la página | Su propia prueba automática falló con un 401 | Corrigió el formato del token simulado |
-| No pudo construir la imagen de Docker porque su entorno no tenía el servicio de Docker | Lo dijo explícitamente | Verificó los pasos del Dockerfile por separado. **La prueba real de `docker compose up` queda a cargo del equipo** |
+| No pudo construir la imagen de Docker porque su entorno no tenía el servicio de Docker. En la conversación del back tampoco pudo compilar .NET | Lo dijo explícitamente | Verificó los pasos del Dockerfile por separado. La prueba real de `docker compose up` la hizo el equipo en Docker Desktop |
+| En la conversación del back generó **dos versiones distintas**: un zip con un proyecto nuevo y, después, cambios directos en el proyecto de Martínez | Al buscar «el archivo del back» había dos candidatos con datos distintos | El equipo eligió una sola versión (el zip) y la subió a `main` |
+| Los documentos decían .NET 10 y BCrypt, pero el back se hizo en .NET 8 con `PasswordHasher` (PBKDF2), porque Martínez pidió .NET 8 | Revisión del código real antes de entregar | Documentos actualizados a la versión 1.1 con los datos reales |
 
 ### 4.3 Límites que la IA no resuelve
 - **Decisiones éticas:** que el sistema señale lugares y no personas, y cómo manejar reportes falsos, lo decidimos nosotros. La IA solo propuso controles.

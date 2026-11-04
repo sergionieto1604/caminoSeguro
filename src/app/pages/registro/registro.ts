@@ -25,9 +25,9 @@ function coinciden(g: AbstractControl): ValidationErrors | null {
 
       <form [formGroup]="form" (ngSubmit)="enviar()" novalidate>
         <label for="alias">Alias <span class="opcional">(cómo te verán si no reportas anónima)</span></label>
-        <input id="alias" formControlName="alias" autocomplete="nickname" maxlength="40"
+        <input id="alias" formControlName="alias" autocomplete="nickname" maxlength="30"
                placeholder="Ej: Caminante Fusa" [attr.aria-invalid]="invalido('alias')" />
-        @if (invalido('alias')) { <small class="err">Entre 2 y 40 caracteres. No uses tu nombre completo.</small> }
+        @if (invalido('alias')) { <small class="err">Entre 3 y 30 caracteres. No uses tu nombre completo.</small> }
 
         <label for="email">Correo</label>
         <input id="email" type="email" formControlName="email" autocomplete="email" inputmode="email"
@@ -80,8 +80,8 @@ export class Registro {
 
   readonly form = this.fb.nonNullable.group(
     {
-      alias: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(40)]],
-      email: ['', [Validators.required, Validators.email, Validators.maxLength(150)]],
+      alias: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(30)]],
+      email: ['', [Validators.required, Validators.email, Validators.maxLength(254)]],
       password: ['', [Validators.required, Validators.maxLength(100), claveSegura]],
       confirmar: ['', [Validators.required]],
       acepta: [false, [Validators.requiredTrue]],

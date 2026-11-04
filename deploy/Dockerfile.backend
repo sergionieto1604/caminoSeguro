@@ -1,9 +1,9 @@
 # ============================================================
-# PLANTILLA para el backend .NET 10. Copiar a la raíz del repo
+# PLANTILLA de referencia (.NET 8). El repo del back ya trae su propio Dockerfile;
 # caminoSeguroBack con el nombre "Dockerfile".
 # Cambiar APP_NAME por el nombre del proyecto (el .csproj sin extensión).
 # ============================================================
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG APP_NAME=CaminoSeguro.Api
 WORKDIR /src
 
@@ -14,7 +14,7 @@ RUN dotnet restore ${APP_NAME}/${APP_NAME}.csproj
 COPY . .
 RUN dotnet publish ${APP_NAME}/${APP_NAME}.csproj -c Release -o /app/publish --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
 ARG APP_NAME=CaminoSeguro.Api
 ENV APP_DLL=${APP_NAME}.dll \
     ASPNETCORE_URLS=http://+:8080 \

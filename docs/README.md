@@ -9,3 +9,5 @@
 | 5 | [Uso de IA](05-uso-de-ia.md) | Herramientas, prompts y evaluación crítica |
 
 Los diagramas son código Mermaid: GitHub los muestra dibujados. Para exportarlos como PNG o SVG se puede usar https://mermaid.live o `npx @mermaid-js/mermaid-cli`.
+
+**Versión en Word para entregar:** carpeta [`entregables/`](entregables/), con los 5 documentos en `.docx` y los 14 diagramas en PNG (`entregables/diagramas-png/`).
