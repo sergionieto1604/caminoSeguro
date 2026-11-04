@@ -1,0 +1,42 @@
+<a class="saltar" href="#principal">Saltar al contenido</a>
+
+<header class="barra">
+  <a routerLink="/" class="marca" aria-label="Ruta Segura, inicio">
+    <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
+      <path d="M16 2c-6 0-10.5 4.6-10.5 10.4C5.5 20.3 16 30 16 30s10.5-9.7 10.5-17.6C26.5 6.6 22 2 16 2z" fill="var(--acento)"/>
+      <path d="M16 7.5l5 2v3.8c0 3.2-2.1 5.8-5 6.9-2.9-1.1-5-3.7-5-6.9V9.5z" fill="var(--fondo)"/>
+    </svg>
+    <span>Ruta <b>Segura</b></span>
+  </a>
+
+  <button type="button" class="menu-btn" (click)="menuAbierto.set(!menuAbierto())"
+          [attr.aria-expanded]="menuAbierto()" aria-controls="menu" aria-label="Menú">
+    <span></span><span></span><span></span>
+  </button>
+
+  <nav id="menu" class="menu" [class.abierto]="menuAbierto()" (click)="menuAbierto.set(false)">
+    <a routerLink="/" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">Reportes</a>
+    @if (auth.autenticada()) {
+      <a routerLink="/mis-reportes" routerLinkActive="activo">Mis reportes</a>
+      <span class="hola">Hola, {{ auth.alias() }}</span>
+      <button type="button" class="btn-txt" (click)="salir()">Salir</button>
+    } @else {
+      <a routerLink="/login" routerLinkActive="activo">Ingresar</a>
+      <a routerLink="/registro" class="btn btn-peq">Crear cuenta</a>
+    }
+  </nav>
+</header>
+
+@if (mock) {
+  <div class="demo-banner">Modo demo: datos de prueba sin backend</div>
+}
+
+<main id="principal" tabindex="-1">
+  <router-outlet />
+</main>
+
+<div class="toasts" aria-live="polite">
+  @for (t of toast.toasts(); track t.id) {
+    <div class="toast" [class.error]="t.tipo === 'error'" role="status" (click)="toast.cerrar(t.id)">{{ t.texto }}</div>
+  }
+</div>

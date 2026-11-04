@@ -1,0 +1,88 @@
+<a routerLink="/" class="volver">← Volver</a>
+
+<h1>{{ editando() ? 'Editar reporte' : 'Reportar un punto de riesgo' }}</h1>
+<p class="sub">Señala un <strong>lugar</strong>, no a una persona. Tu correo nunca se muestra.</p>
+
+@if (cargando()) {
+  <p>Cargando…</p>
+} @else {
+  <form [formGroup]="form" (ngSubmit)="enviar()" novalidate>
+    <!-- 1. Categoría -->
+    <fieldset>
+      <legend>1. ¿Qué tipo de riesgo es?</legend>
+      <div class="categorias">
+        @for (c of categorias(); track c.id) {
+          <label class="opcion-cat" [style.--cat]="c.colorHex">
+            <input type="radio" formControlName="categoriaId" [value]="c.id"
+                   [attr.aria-invalid]="invalido('categoriaId')" />
+            <span class="punto" aria-hidden="true"></span>
+            <span>{{ c.nombre }}</span>
+          </label>
+        }
+      </div>
+      @if (invalido('categoriaId')) { <small class="err">Elige una categoría.</small> }
+    </fieldset>
+
+    <!-- 2. Ubicación textual -->
+    <fieldset>
+      <legend>2. ¿Dónde queda?</legend>
+
+      <label for="municipio">Municipio</label>
+      <select id="municipio" class="select" formControlName="municipioId" [attr.aria-invalid]="invalido('municipioId')">
+        <option [ngValue]="null" disabled>Elige el municipio</option>
+        @for (m of municipios(); track m.id) {
+          <option [ngValue]="m.id">{{ m.nombre }}</option>
+        }
+      </select>
+      @if (invalido('municipioId')) { <small class="err">Elige el municipio.</small> }
+
+      <label for="referencia">Punto de referencia</label>
+      <input id="referencia" formControlName="puntoReferencia" maxlength="200" autocomplete="off"
+             placeholder="Ej: Parque principal, esquina de la iglesia"
+             [attr.aria-invalid]="invalido('puntoReferencia')" aria-describedby="ayudaRef" />
+      <small id="ayudaRef" [class.err]="invalido('puntoReferencia')">
+        Un sitio que todas reconozcan: parque, calle, paradero, entrada de universidad. Mínimo 5 caracteres.
+      </small>
+    </fieldset>
+
+    <!-- 3. Detalles -->
+    <fieldset>
+      <legend>3. Detalles <span class="opcional">(opcional)</span></legend>
+
+      <span class="etiqueta" id="franjaLbl">¿A qué hora es más riesgoso?</span>
+      <div class="franjas" role="group" aria-labelledby="franjaLbl">
+        @for (f of franjas; track f) {
+          <button type="button" class="chip" [class.on]="form.controls.franjaHoraria.value === f"
+                  [attr.aria-pressed]="form.controls.franjaHoraria.value === f" (click)="elegirFranja(f)">{{ f }}</button>
+        }
+      </div>
+
+      <label for="descripcion">Descripción</label>
+      <textarea id="descripcion" formControlName="descripcion" rows="4" maxlength="500"
+                placeholder="Qué pasa, desde cuándo, qué recomiendas…"
+                [attr.aria-invalid]="invalido('descripcion')" aria-describedby="ayudaDesc"></textarea>
+      <small id="ayudaDesc" class="fila-ayuda">
+        <span>⚠️ No escribas nombres, teléfonos ni datos de personas.</span>
+        <span>{{ largoDescripcion().length }}/500</span>
+      </small>
+    </fieldset>
+
+    <!-- 4. Privacidad -->
+    <label class="interruptor">
+      <input type="checkbox" formControlName="esAnonimo" role="switch" />
+      <span class="pista" aria-hidden="true"></span>
+      <span>
+        <strong>Publicar como anónima</strong><br />
+        <small>Si lo desactivas, se mostrará tu alias.</small>
+      </span>
+    </label>
+
+    @if (error()) { <p class="alerta" role="alert">{{ error() }}</p> }
+
+    <div class="barra-enviar">
+      <button class="btn bloque" type="submit" [disabled]="enviando()">
+        {{ enviando() ? 'Guardando…' : editando() ? 'Guardar cambios' : 'Publicar reporte' }}
+      </button>
+    </div>
+  </form>
+}

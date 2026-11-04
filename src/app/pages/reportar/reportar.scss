@@ -1,0 +1,185 @@
+:host {
+  display: block;
+  max-width: 620px;
+  margin: 0 auto;
+  padding-bottom: 24px;
+}
+
+.volver {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--texto-suave);
+  text-decoration: none;
+  min-height: 40px;
+  line-height: 40px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: clamp(1.4rem, 5vw, 1.9rem);
+}
+
+.sub {
+  margin: 0 0 18px;
+  color: var(--texto-suave);
+}
+
+form {
+  display: grid;
+  gap: 18px;
+}
+
+fieldset {
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  padding: 14px 16px 16px;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+legend {
+  font-family: var(--fuente-titulos);
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: 0 6px;
+}
+
+.categorias {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.opcion-cat {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 10px 12px;
+  border: 2px solid var(--borde-fuerte);
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  line-height: 1.2;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    inset: 0;
+    cursor: pointer;
+  }
+
+  &:has(input:checked) {
+    border-color: var(--cat);
+    background: color-mix(in srgb, var(--cat) 20%, var(--superficie));
+  }
+  &:has(input:focus-visible) {
+    outline: 3px solid var(--acento);
+    outline-offset: 2px;
+  }
+}
+
+.punto {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--cat);
+  flex: none;
+}
+
+.etiqueta {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.franjas {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.chip {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1.5px solid var(--borde-fuerte);
+  background: transparent;
+  color: var(--texto);
+  font-weight: 600;
+  &.on {
+    background: var(--acento);
+    border-color: var(--acento);
+    color: var(--sobre-acento);
+  }
+}
+
+.fila-ayuda {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.interruptor {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+  cursor: pointer;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+  }
+
+  .pista {
+    flex: none;
+    width: 52px;
+    height: 30px;
+    border-radius: 999px;
+    background: var(--borde-fuerte);
+    position: relative;
+    transition: background 0.2s;
+    &::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform 0.2s;
+    }
+  }
+
+  input:checked + .pista {
+    background: var(--acento);
+    &::after {
+      transform: translateX(22px);
+    }
+  }
+  input:focus-visible + .pista {
+    outline: 3px solid var(--acento);
+    outline-offset: 2px;
+  }
+  small {
+    color: var(--texto-suave);
+  }
+}
+
+// En celular el botón queda pegado abajo, siempre a mano del pulgar.
+.barra-enviar {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--fondo) 70%, transparent);
+}

@@ -1,0 +1,92 @@
+<section class="intro">
+  <h1>Zonas de riesgo reportadas</h1>
+  <p>Información colaborativa entre mujeres de Cundinamarca para moverse con más seguridad de noche.</p>
+</section>
+
+<!-- Desde dónde se mide la cercanía -->
+<section class="referencia" aria-label="Punto de referencia para ordenar por cercanía">
+  <div class="ref-actual">
+    <span class="punto-azul" aria-hidden="true"></span>
+    @if (ubicacion.punto(); as p) {
+      <span>Cerca de: <strong>{{ p.etiqueta }}</strong></span>
+    } @else {
+      <span>Elige tu ubicación para ver lo más cercano primero</span>
+    }
+  </div>
+  <div class="ref-controles">
+    <button type="button" class="btn btn-sec" (click)="usarGps()" [disabled]="ubicacion.buscando()">
+      {{ ubicacion.buscando() ? 'Buscando…' : '📍 Usar mi ubicación' }}
+    </button>
+    <label class="sr-only" for="municipioRef">Municipio de referencia</label>
+    <select id="municipioRef" class="select" (change)="elegirMunicipio($any($event.target).value)">
+      <option value="" [selected]="!ubicacion.punto()?.municipioId">o elige municipio…</option>
+      @for (m of municipios(); track m.id) {
+        <option [value]="m.id" [selected]="ubicacion.punto()?.municipioId === m.id">{{ m.nombre }}</option>
+      }
+    </select>
+  </div>
+  @if (ubicacion.error()) {
+    <p class="aviso" role="status">{{ ubicacion.error() }}</p>
+  }
+</section>
+
+<!-- Filtro por tipo de riesgo -->
+<nav class="chips" aria-label="Filtrar por tipo de riesgo">
+  <button type="button" class="chip" [class.on]="categoriaId() === null" (click)="categoriaId.set(null)">Todos</button>
+  @for (c of categorias(); track c.id) {
+    <button type="button" class="chip" [class.on]="categoriaId() === c.id" [style.--cat]="c.colorHex"
+            [attr.aria-pressed]="categoriaId() === c.id" (click)="filtrar(c.id)">
+      <span class="punto" aria-hidden="true"></span>{{ c.nombre }}
+    </button>
+  }
+</nav>
+
+<!-- Pestañas solo visibles en celular -->
+<div class="tabs" role="tablist">
+  <button type="button" role="tab" [attr.aria-selected]="vista() === 'lista'" [class.on]="vista() === 'lista'"
+          (click)="vista.set('lista')">Lista · {{ conteo() }}</button>
+  <button type="button" role="tab" [attr.aria-selected]="vista() === 'mapa'" [class.on]="vista() === 'mapa'"
+          (click)="vista.set('mapa')">Mapa</button>
+</div>
+
+<div class="contenido" [attr.data-vista]="vista()">
+  <section class="lista" aria-live="polite" [attr.aria-busy]="cargando()">
+    @if (cargando()) {
+      @for (i of [1, 2, 3]; track i) {
+        <div class="esqueleto"></div>
+      }
+    } @else if (error()) {
+      <div class="vacio">
+        <p>{{ error() }}</p>
+        <button type="button" class="btn btn-sec" (click)="reintentar()">Reintentar</button>
+      </div>
+    } @else {
+      @for (r of reportes(); track r.id) {
+        <app-reporte-card [id]="'reporte-' + r.id" [reporte]="r" [activa]="seleccionado() === r.id"
+                          (confirmar)="confirmar($event)" (editar)="editar($event)"
+                          (borrar)="borrar($event)" (verEnMapa)="verEnMapa($event)" />
+      } @empty {
+        <div class="vacio">
+          <p><strong>No hay reportes con este filtro.</strong></p>
+          <p>Si conoces un punto de riesgo, repórtalo para alertar a otras.</p>
+          <a class="btn" routerLink="/reportar">Hacer un reporte</a>
+        </div>
+      }
+    }
+  </section>
+
+  <section class="mapa-col">
+    <app-mapa [reportes]="reportes()" [referencia]="ubicacion.punto()" [seleccionado]="seleccionado()"
+              (seleccionar)="enfocarEnLista($event)" />
+    <ul class="leyenda" aria-label="Leyenda del mapa">
+      @for (c of categorias(); track c.id) {
+        <li [style.--cat]="c.colorHex"><span class="punto"></span>{{ c.nombre }}</li>
+      }
+      <li style="--cat: #3b82f6"><span class="punto"></span>Tu referencia</li>
+    </ul>
+  </section>
+</div>
+
+<a class="fab" routerLink="/reportar" aria-label="Reportar un punto de riesgo">
+  <span aria-hidden="true">＋</span> Reportar
+</a>
